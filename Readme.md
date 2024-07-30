@@ -40,7 +40,7 @@ Windows Automation GUI is a powerful, user-friendly application for creating and
    - Hover over UI elements to capture their properties.
    - Select an action type and configure its parameters.
    - Click "Add Step" to build your sequence.
-   - Generate and save your automation script.
+   - Generate and save your automation script (defaulted location on user's desktop as Win_automation.py)
 
 5. **Run Your Automation:**
 
