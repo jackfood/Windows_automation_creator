@@ -25,8 +25,8 @@ Windows Automation GUI is a powerful, user-friendly application for creating and
 
 2. **Installation:**
 
-   ```bash
    Copy the Win_automation_GUI.py
+   ```bash
    pip install tkinter ttkbootstrap pyautogui uiautomation keyboard pywin32
    ```
 
