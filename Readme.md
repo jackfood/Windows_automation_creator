@@ -1,7 +1,5 @@
 ## Windows Automation GUI
 
-[![Project Logo](path_to_logo_image.png)](path_to_logo_image.png) 
-
 Windows Automation GUI is a powerful, user-friendly application for creating and executing automated tasks on Windows systems. Built with Python, it offers an intuitive interface for recording UI actions, generating scripts, and streamlining repetitive workflows.
 
 ## 🌟 Features
