@@ -14,7 +14,7 @@ class AutoGUIApp:
     def __init__(self, root):
         self.root = root
         self.style = Style(theme='flatly')
-        self.root.title("Enhanced Windows Auto GUI v1.26")
+        self.root.title("Enhanced Windows Auto GUI v1.4 - Robust System improved detection")
         self.fields = ["ClassName", "Name", "AutomationId"]
         self.vars = {field: tk.StringVar() for field in self.fields}
         self.action_var = tk.StringVar(value="Click")
@@ -27,94 +27,118 @@ class AutoGUIApp:
         self.allow_mouse_movement_var = tk.BooleanVar(value=False)
         self.insert_position_var = tk.StringVar()
         self.steps = []
+        self.window_name_var = tk.StringVar()
         self.create_widgets()
         self.setup_global_hotkeys()
         self.update_info()
 
     def create_widgets(self):
-        for i, field in enumerate(self.fields):
-            tk.Label(self.root, text=f"{field}:").grid(row=i, column=0, sticky="w", padx=5, pady=2)
-            tk.Entry(self.root, textvariable=self.vars[field], width=50).grid(row=i, column=1, padx=5, pady=2)
+        main_frame = ttk.Frame(self.root, padding="10")
+        main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.root.columnconfigure(0, weight=1)
+        self.root.rowconfigure(0, weight=1)
 
-        tk.Label(self.root, text="Action:").grid(row=len(self.fields), column=0, sticky="w", padx=5, pady=2)
-        action_dropdown = ttk.Combobox(self.root, textvariable=self.action_var, 
+        # Import Script button at the top
+        ttk.Button(main_frame, text="Import Script", command=self.import_script).grid(row=0, column=0, columnspan=2, pady=(0, 10), sticky="ew")
+
+        # Window Name input
+        ttk.Label(main_frame, text="Window Name:").grid(row=1, column=0, sticky="w", padx=5, pady=2)
+        ttk.Entry(main_frame, textvariable=self.window_name_var, width=50).grid(row=1, column=1, padx=5, pady=2, sticky="ew")
+
+        # ClassName, Name, AutomationId fields
+        for i, field in enumerate(self.fields, start=2):
+            ttk.Label(main_frame, text=f"{field}:").grid(row=i, column=0, sticky="w", padx=5, pady=2)
+            ttk.Entry(main_frame, textvariable=self.vars[field], width=50).grid(row=i, column=1, padx=5, pady=2, sticky="ew")
+
+        # Action dropdown
+        ttk.Label(main_frame, text="Action:").grid(row=5, column=0, sticky="w", padx=5, pady=2)
+        action_dropdown = ttk.Combobox(main_frame, textvariable=self.action_var, 
                                        values=["Click", "Right click", "Double click", "Special key", "Input text", "Input box", "Open Program"])
-        action_dropdown.grid(row=len(self.fields), column=1, sticky="w", padx=5, pady=2)
+        action_dropdown.grid(row=5, column=1, sticky="ew", padx=5, pady=2)
         action_dropdown.bind("<<ComboboxSelected>>", self.on_action_selected)
 
-        tk.Label(self.root, text="Text Input:").grid(row=len(self.fields)+1, column=0, sticky="w", padx=5, pady=2)
-        self.text_input_entry = tk.Entry(self.root, textvariable=self.text_input_var, width=50)
-        self.text_input_entry.grid(row=len(self.fields)+1, column=1, padx=5, pady=2)
+        # Text Input
+        ttk.Label(main_frame, text="Text Input:").grid(row=6, column=0, sticky="w", padx=5, pady=2)
+        self.text_input_entry = ttk.Entry(main_frame, textvariable=self.text_input_var, width=50)
+        self.text_input_entry.grid(row=6, column=1, padx=5, pady=2, sticky="ew")
 
-        tk.Button(self.root, text="Import Script", command=self.import_script).grid(row=len(self.fields)+14, column=0, columnspan=2, pady=5)
-
-        tk.Label(self.root, text="Special Key:").grid(row=len(self.fields)+2, column=0, sticky="w", padx=5, pady=2)
-        self.special_key_dropdown = ttk.Combobox(self.root, textvariable=self.special_key_var, 
+        # Special Key
+        ttk.Label(main_frame, text="Special Key:").grid(row=7, column=0, sticky="w", padx=5, pady=2)
+        self.special_key_dropdown = ttk.Combobox(main_frame, textvariable=self.special_key_var, 
                                                  values=["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12",
                                                          "Enter", "Esc", "Tab", "Backspace", "Delete", "Insert",
                                                          "Home", "End", "PageUp", "PageDown",
                                                          "Left", "Right", "Up", "Down",
                                                          "Windows", "Menu"])
-        self.special_key_dropdown.grid(row=len(self.fields)+2, column=1, sticky="w", padx=5, pady=2)
+        self.special_key_dropdown.grid(row=7, column=1, sticky="ew", padx=5, pady=2)
 
-        tk.Label(self.root, text="Modifier Key:").grid(row=len(self.fields)+3, column=0, sticky="w", padx=5, pady=2)
-        self.modifier_key_dropdown = ttk.Combobox(self.root, textvariable=self.modifier_key_var, 
-                                                  values=["", "Ctrl", "Alt", "Shift"])
-        self.modifier_key_dropdown.grid(row=len(self.fields)+3, column=1, sticky="w", padx=5, pady=2)
+        # Modifier Key
+        ttk.Label(main_frame, text="Modifier Key:").grid(row=8, column=0, sticky="w", padx=5, pady=2)
+        modifier_frame = ttk.Frame(main_frame)
+        modifier_frame.grid(row=8, column=1, sticky="ew", padx=5, pady=2)
+        self.modifier_key_dropdown = ttk.Combobox(modifier_frame, textvariable=self.modifier_key_var, 
+                                                  values=["", "Ctrl", "Alt", "Shift"], width=10)
+        self.modifier_key_dropdown.pack(side=tk.LEFT)
         self.modifier_key_dropdown.bind("<<ComboboxSelected>>", self.on_modifier_key_selected)
-
-        tk.Label(self.root, text="+").grid(row=len(self.fields)+3, column=1, padx=(120, 0))
-        self.modifier_key_combo_entry = tk.Entry(self.root, textvariable=self.modifier_key_combo_var, width=5)
-        self.modifier_key_combo_entry.grid(row=len(self.fields)+3, column=1, padx=(140, 0))
-        self.modifier_key_combo_entry.config(state='disabled')
+        ttk.Label(modifier_frame, text="+").pack(side=tk.LEFT, padx=5)
+        self.modifier_key_combo_entry = ttk.Entry(modifier_frame, textvariable=self.modifier_key_combo_var, width=5)
+        self.modifier_key_combo_entry.pack(side=tk.LEFT)
 
         # Input box (multi-line text input)
-        self.input_box_label = tk.Label(self.root, text="Input Box:")
-        self.input_box_label.grid(row=len(self.fields)+4, column=0, sticky="w", padx=5, pady=2)
+        self.input_box_label = ttk.Label(main_frame, text="Input Box:")
+        self.input_box_label.grid(row=9, column=0, sticky="w", padx=5, pady=2)
         self.input_box_label.grid_remove()
-
-        self.input_box = tk.Text(self.root, height=5, width=50)
-        self.input_box.grid(row=len(self.fields)+4, column=1, padx=5, pady=2)
+        self.input_box = tk.Text(main_frame, height=5, width=50)
+        self.input_box.grid(row=9, column=1, padx=5, pady=2, sticky="ew")
         self.input_box.grid_remove()
 
         # Program path entry and browse button
-        self.program_path_label = tk.Label(self.root, text="Program Path:")
-        self.program_path_label.grid(row=len(self.fields)+5, column=0, sticky="w", padx=5, pady=2)
+        self.program_path_label = ttk.Label(main_frame, text="Program Path:")
+        self.program_path_label.grid(row=10, column=0, sticky="w", padx=5, pady=2)
         self.program_path_label.grid_remove()
+        program_path_frame = ttk.Frame(main_frame)
+        program_path_frame.grid(row=10, column=1, sticky="ew", padx=5, pady=2)
+        self.program_path_entry = ttk.Entry(program_path_frame, textvariable=self.program_path_var)
+        self.program_path_entry.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        self.browse_button = ttk.Button(program_path_frame, text="Browse", command=self.browse_program)
+        self.browse_button.pack(side=tk.RIGHT)
+        program_path_frame.grid_remove()
 
-        self.program_path_entry = tk.Entry(self.root, textvariable=self.program_path_var, width=40)
-        self.program_path_entry.grid(row=len(self.fields)+5, column=1, sticky="w", padx=5, pady=2)
-        self.program_path_entry.grid_remove()
-
-        self.browse_button = ttk.Button(self.root, text="Browse", command=self.browse_program)
-        self.browse_button.grid(row=len(self.fields)+5, column=1, sticky="e", padx=5, pady=2)
-        self.browse_button.grid_remove()
-
-        tk.Label(self.root, text="Wait Time (s):").grid(row=len(self.fields)+6, column=0, sticky="w", padx=5, pady=2)
-        tk.Entry(self.root, textvariable=self.wait_time_var, width=10).grid(row=len(self.fields)+6, column=1, sticky="w", padx=5, pady=2)
+        # Wait Time
+        ttk.Label(main_frame, text="Wait Time (s):").grid(row=11, column=0, sticky="w", padx=5, pady=2)
+        ttk.Entry(main_frame, textvariable=self.wait_time_var, width=10).grid(row=11, column=1, sticky="w", padx=5, pady=2)
 
         # Insert position input
-        tk.Label(self.root, text="Insert Position:").grid(row=len(self.fields)+7, column=0, sticky="w", padx=5, pady=2)
-        tk.Entry(self.root, textvariable=self.insert_position_var, width=10).grid(row=len(self.fields)+7, column=1, sticky="w", padx=5, pady=2)
+        ttk.Label(main_frame, text="Insert Position:").grid(row=12, column=0, sticky="w", padx=5, pady=2)
+        ttk.Entry(main_frame, textvariable=self.insert_position_var, width=10).grid(row=12, column=1, sticky="w", padx=5, pady=2)
 
-        tk.Button(self.root, text="Add Step", command=self.add_step).grid(row=len(self.fields)+8, column=0, columnspan=2, pady=5)
-        tk.Button(self.root, text="Remove Step", command=self.remove_step).grid(row=len(self.fields)+9, column=0, columnspan=2, pady=5)
-        tk.Button(self.root, text="Generate Code", command=self.code_generation).grid(row=len(self.fields)+10, column=0, columnspan=2, pady=5)
+        # Buttons
+        button_frame = ttk.Frame(main_frame)
+        button_frame.grid(row=13, column=0, columnspan=2, pady=10)
+        ttk.Button(button_frame, text="Add Step", command=self.add_step).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Remove Step", command=self.remove_step).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Generate Code", command=self.code_generation).pack(side=tk.LEFT, padx=5)
 
-        self.steps_listbox = tk.Listbox(self.root, width=80, height=10)
-        self.steps_listbox.grid(row=len(self.fields)+11, column=0, columnspan=2, pady=10)
+        # Steps listbox
+        self.steps_listbox = tk.Listbox(main_frame, width=80, height=10)
+        self.steps_listbox.grid(row=14, column=0, columnspan=2, pady=10, sticky="ew")
+        self.steps_listbox.bind('<<ListboxSelect>>', self.on_step_select)
 
-        # Add checkbox for mouse movement control
+        # Mouse movement checkbox
         self.allow_mouse_movement_checkbox = ttk.Checkbutton(
-            self.root, 
+            main_frame, 
             text="Allow mouse movement and highlighter",
             variable=self.allow_mouse_movement_var,
             style='primary.TCheckbutton'
         )
-        self.allow_mouse_movement_checkbox.grid(row=len(self.fields)+12, column=0, columnspan=2, pady=5, sticky="w")
+        self.allow_mouse_movement_checkbox.grid(row=15, column=0, columnspan=2, pady=5, sticky="w")
 
-        self.status_label = tk.Label(self.root, text="", fg="black")
-        self.status_label.grid(row=len(self.fields)+13, column=0, columnspan=2, pady=10)
+        # Status label
+        self.status_label = ttk.Label(main_frame, text="", foreground="black")
+        self.status_label.grid(row=16, column=0, columnspan=2, pady=10, sticky="ew")
+
+        # Configure column weights
+        main_frame.columnconfigure(1, weight=1)
 
     def on_action_selected(self, event):
         action = self.action_var.get()
@@ -123,41 +147,33 @@ class AutoGUIApp:
             self.input_box.grid()
             self.text_input_entry.grid_remove()
             self.program_path_label.grid_remove()
-            self.program_path_entry.grid_remove()
-            self.browse_button.grid_remove()
+            self.program_path_entry.master.grid_remove()
             self.special_key_dropdown.grid_remove()
-            self.modifier_key_dropdown.grid_remove()
-            self.modifier_key_combo_entry.grid_remove()
+            self.modifier_key_dropdown.master.grid_remove()
         elif action == "Open Program":
             self.input_box_label.grid_remove()
             self.input_box.grid_remove()
             self.text_input_entry.grid_remove()
             self.program_path_label.grid()
-            self.program_path_entry.grid()
-            self.browse_button.grid()
+            self.program_path_entry.master.grid()
             self.special_key_dropdown.grid_remove()
-            self.modifier_key_dropdown.grid_remove()
-            self.modifier_key_combo_entry.grid_remove()
+            self.modifier_key_dropdown.master.grid_remove()
         elif action == "Special key":
             self.input_box_label.grid_remove()
             self.input_box.grid_remove()
             self.text_input_entry.grid_remove()
             self.program_path_label.grid_remove()
-            self.program_path_entry.grid_remove()
-            self.browse_button.grid_remove()
+            self.program_path_entry.master.grid_remove()
             self.special_key_dropdown.grid()
-            self.modifier_key_dropdown.grid()
-            self.modifier_key_combo_entry.grid()
+            self.modifier_key_dropdown.master.grid()
         else:
             self.input_box_label.grid_remove()
             self.input_box.grid_remove()
             self.text_input_entry.grid()
             self.program_path_label.grid_remove()
-            self.program_path_entry.grid_remove()
-            self.browse_button.grid_remove()
+            self.program_path_entry.master.grid_remove()
             self.special_key_dropdown.grid_remove()
-            self.modifier_key_dropdown.grid_remove()
-            self.modifier_key_combo_entry.grid_remove()
+            self.modifier_key_dropdown.master.grid_remove()
 
         if action == "Input text":
             self.text_input_entry.config(state='normal')
@@ -217,6 +233,10 @@ class AutoGUIApp:
                 self.vars["Name"].set(element.Name or "")
                 self.vars["AutomationId"].set(element.AutomationId or "")
                 
+                # Get the top-level window
+                window = element.GetTopLevelControl()
+                self.window_name_var.set(window.Name if window else "")
+
                 if not element.ClassName or element.ClassName == "Unknown":
                     parent = element.GetParentControl()
                     if parent:
@@ -225,6 +245,7 @@ class AutoGUIApp:
                 self.vars["ClassName"].set("Unknown")
                 self.vars["Name"].set("")
                 self.vars["AutomationId"].set("")
+                self.window_name_var.set("")
         except Exception as e:
             self.update_status(f"Error: {e}", "red")
         self.root.after(100, self.update_info)
@@ -233,6 +254,7 @@ class AutoGUIApp:
         action = self.action_var.get()
         step_info = {field: self.vars[field].get() for field in self.fields}
         step_info['action'] = action
+        step_info['WindowName'] = self.window_name_var.get()
         
         if action == "Input text":
             step_info['text'] = self.text_input_var.get()
@@ -244,7 +266,7 @@ class AutoGUIApp:
             step_info['modifier_key_combo'] = self.modifier_key_combo_var.get()
         elif action == "Open Program":
             step_info['program_path'] = self.program_path_var.get()
-    
+
         if action == "Open Program" or ((step_info['ClassName'] and step_info['ClassName'] != "Unknown") or step_info['Name']):
             insert_position = self.insert_position_var.get()
             if insert_position and insert_position.isdigit():
@@ -273,7 +295,53 @@ class AutoGUIApp:
             action = step_info.get('action', '')
             class_name = step_info.get('ClassName', '')
             name = step_info.get('Name', '')
-            self.steps_listbox.insert(tk.END, f"{i}. {action}: {class_name}, {name}, Wait: {wait_time}s")
+            window_name = step_info.get('WindowName', '')
+            
+            # Add more details based on the action type
+            details = ""
+            if action == "Input text":
+                details = f"Text: {step_info.get('text', '')}"
+            elif action == "Special key":
+                modifier = step_info.get('modifier_key', '')
+                key_combo = step_info.get('modifier_key_combo', '')
+                special_key = step_info.get('special_key', '')
+                if modifier and key_combo:
+                    details = f"Key: {modifier} + {key_combo}"
+                elif special_key:
+                    details = f"Key: {special_key}"
+            elif action == "Open Program":
+                details = f"Path: {step_info.get('program_path', '')}"
+            
+            self.steps_listbox.insert(tk.END, f"{i}. {action}: {class_name}, {name}, Window: {window_name}, {details}, Wait: {wait_time}s")
+
+    def on_step_select(self, event):
+        selection = event.widget.curselection()
+        if selection:
+            index = selection[0]
+            step_info, wait_time = self.steps[index]
+            
+            # Update form fields with selected step information
+            for field in self.fields:
+                self.vars[field].set(step_info.get(field, ''))
+            
+            self.window_name_var.set(step_info.get('WindowName', ''))
+            self.action_var.set(step_info.get('action', ''))
+            self.wait_time_var.set(wait_time)
+            
+            action = step_info.get('action', '')
+            if action == "Input text":
+                self.text_input_var.set(step_info.get('text', ''))
+            elif action == "Input box":
+                self.input_box.delete("1.0", tk.END)
+                self.input_box.insert(tk.END, step_info.get('text', ''))
+            elif action == "Special key":
+                self.special_key_var.set(step_info.get('special_key', ''))
+                self.modifier_key_var.set(step_info.get('modifier_key', ''))
+                self.modifier_key_combo_var.set(step_info.get('modifier_key_combo', ''))
+            elif action == "Open Program":
+                self.program_path_var.set(step_info.get('program_path', ''))
+            
+            self.on_action_selected(None)  # Update form layout based on selected action
 
     def code_generation(self):
         if not self.steps:
@@ -325,23 +393,35 @@ def highlight_element(element):
         print(f"Element bounds: Left={{element.BoundingRectangle.left}}, Top={{element.BoundingRectangle.top}}, "
               f"Width={{element.BoundingRectangle.width}}, Height={{element.BoundingRectangle.height}}")
 
+def find_desktop():
+    desktop = auto.PaneControl(ClassName="WorkerW")
+    if not desktop.Exists(1):
+        desktop = auto.PaneControl(ClassName="Progman")
+    if desktop.Exists(1):
+        listview = desktop.ListControl(ClassName="SysListView32")
+        if listview.Exists(1):
+            return listview
+    return None
+
+def find_window(window_name):
+    windows = auto.GetRootControl().GetChildren()
+    for window in windows:
+        if window_name.lower() in window.Name.lower():
+            return window
+    return None
+
 def find_control(root_control, class_name, name=None, automation_id=None, max_depth=10):
     def search(control, depth=0):
         if depth > max_depth:
             return None
 
-        if class_name == "Unknown" or not class_name:
-            if (name and control.Name == name) or (automation_id and control.AutomationId == automation_id):
-                return control
-        elif ">" in class_name:
-            parent_class, child_class = class_name.split(" > ")
-            if control.ClassName == parent_class:
-                for child in control.GetChildren():
-                    if child.ClassName == child_class or child_class == "Unknown":
-                        if (name is None or child.Name == name) and (automation_id is None or child.AutomationId == automation_id):
-                            return child
-        elif (class_name.startswith("^") and re.match(class_name[1:], control.ClassName)) or (control.ClassName == class_name):
-            if (name is None or control.Name == name) and (automation_id is None or control.AutomationId == automation_id):
+        if control.ClassName == "SysListView32" and name:
+            for item in control.GetChildren():
+                if item.Name.lower() == name.lower():
+                    return item
+
+        if class_name_matches(control, class_name):
+            if (name is None or control.Name.lower() == name.lower()) and (automation_id is None or control.AutomationId == automation_id):
                 return control
 
         for child in control.GetChildren():
@@ -351,77 +431,142 @@ def find_control(root_control, class_name, name=None, automation_id=None, max_de
 
         return None
 
-    return search(root_control)
+    def class_name_matches(ctrl, target_class):
+        if target_class == "Unknown" or not target_class:
+            return True
+        if ">" in target_class:
+            parent_class, child_class = target_class.split(" > ")
+            return ctrl.ClassName == parent_class or ctrl.ClassName == child_class
+        return (target_class.startswith("^") and re.match(target_class[1:], ctrl.ClassName)) or \
+               (ctrl.ClassName == target_class) or \
+               (target_class.lower() in ctrl.ClassName.lower())
+
+    result = search(root_control)
+    if result:
+        print(f"Found matching element: ClassName={{result.ClassName}}, Name={{result.Name}}, AutomationId={{result.AutomationId}}")
+    else:
+        print("No matching element found")
+    return result
+
+def perform_action(element, action, step_info, window_name=None):
+    if action == "Click":
+        element.Click(simulateMove=ALLOW_MOUSE_MOVEMENT)
+    elif action == "Right click":
+        element.RightClick(simulateMove=ALLOW_MOUSE_MOVEMENT)
+    elif action == "Double click":
+        element.DoubleClick(simulateMove=ALLOW_MOUSE_MOVEMENT)
+    elif action == "Input text":
+        element.SendKeys(step_info.get("text", ""), interval=0)
+    elif action == "Input box":
+        lines = step_info.get("text", "").splitlines()
+        for i, line in enumerate(lines):
+            element.SendKeys(line, interval=0)
+            if i < len(lines) - 1:
+                element.SendKeys(uiautomation.Keys.VK_RETURN)
+    elif action == "Special key":
+        special_key = step_info.get("special_key", "")
+        modifier_key = step_info.get("modifier_key", "")
+        modifier_key_combo = step_info.get("modifier_key_combo", "")
+
+        # Construct the key combination string
+        key_combo = ""
+        if modifier_key:
+            key_combo += modifier_key.lower() + "+"
+        if modifier_key_combo:
+            key_combo += modifier_key_combo.lower() + "+"
+        key_combo += special_key.lower()
+
+        # Send the key combination using pyautogui
+        pyautogui.hotkey(*key_combo.split("+"))
+  
+    elif action == "Open Program":
+        program_path = step_info.get("program_path", "")
+        if program_path:
+            subprocess.Popen(program_path)
+        else:
+            print("No program path provided for 'Open Program' action")
+    else:
+        print(f"Unknown action: {{action}}")
+    print(f"Action '{{action}}' performed on the element.")
 
 def run_automation():
     steps = {steps_json}
+
+    current_window = None
 
     for step_info, wait_time in steps:
         time.sleep(wait_time)
 
         action = step_info.get("action")
+        class_name = step_info.get("ClassName")
+        name = step_info.get("Name")
+        automation_id = step_info.get("AutomationId")
+        window_name = step_info.get("WindowName", "")
+
+        print(f"Step: Action={{action}}, ClassName={{class_name}}, Name={{name}}, AutomationId={{automation_id}}, WindowName={{window_name}}")
+
+        element = None
 
         if action == "Open Program":
-            program_path = step_info.get("program_path")
-            try:
-                if program_path.lower().endswith(('.docx', '.xlsx', '.pptx', '.pdf', '.txt')):
-                    os.startfile(program_path)
-                else:
-                    subprocess.Popen(program_path)
-                print(f"Opened program/file: {{program_path}}")
-            except Exception as e:
-                print(f"Failed to open program/file: {{program_path}}. Error: {{e}}")
-        else:
-            class_name = step_info.get("ClassName")
-            name = step_info.get("Name")
-            automation_id = step_info.get("AutomationId")
+            perform_action(None, action, step_info)
+            continue
 
-            print(f"Searching for element: ClassName={{class_name}}, Name={{name}}, AutomationId={{automation_id}}")
-
-            element = find_control(auto.GetRootControl(), class_name, name, automation_id)
-            if element:
-                print(f"Element found: ClassName={{element.ClassName}}, Name={{element.Name}}, AutomationId={{element.AutomationId}}")
-                element.SetFocus()
-                highlight_element(element)
-                if action == "Click":
-                    element.Click(simulateMove=ALLOW_MOUSE_MOVEMENT)
-                elif action == "Right click":
-                    element.RightClick(simulateMove=ALLOW_MOUSE_MOVEMENT)
-                elif action == "Double click":
-                    element.DoubleClick(simulateMove=ALLOW_MOUSE_MOVEMENT)
-                elif action == "Input text":
-                    element.SendKeys(step_info.get("text"), interval=0)
-                elif action == "Input box":
-                    lines = step_info.get("text").splitlines()
-                    for i, line in enumerate(lines):
-                        element.SendKeys(line, interval=0)
-                        if i < len(lines) - 1:  # Don't press Enter after the last line
-                            element.SendKeys(Keys.ENTER)
-                elif action == "Special key":
-                    special_key = step_info.get("special_key")
-                    modifier_key = step_info.get("modifier_key")
-                    modifier_key_combo = step_info.get("modifier_key_combo")
-                    if modifier_key and modifier_key_combo:
-                        element.SendKeys(f'{{{{{{modifier_key}}}}}}{{{{{{modifier_key_combo}}}}}}', interval=0)
-                    elif special_key:
-                        element.SendKeys(f'{{{{{{special_key.upper()}}}}}}', interval=0)
-                print(f"Action '{{action}}' performed on the element.")
+        if not window_name or window_name == "Program Manager":
+            print("Searching for desktop items")
+            desktop = find_desktop()
+            if desktop:
+                element = find_control(desktop, class_name, name, automation_id)
             else:
-                print(f"Element not found: {{step_info}}")
+                print("Desktop not found")
+        else:
+            try:
+                print(f"Searching for window: {{window_name}}")
+                new_window = None
+                for w in auto.WindowControl(searchDepth=1).GetChildren():
+                    if window_name.lower() in w.Name.lower():
+                        new_window = w
+                        break
+
+                if new_window and new_window.Exists(1):
+                    if new_window != current_window:
+                        current_window = new_window
+                        print(f"Switching to window: {{current_window.Name}}")
+                        current_window.SetFocus()
+                        current_window.Maximize()
+                    print(f"Searching for element within window: {{current_window.Name}}")
+                    element = find_control(current_window, class_name, name, automation_id)
+                else:
+                    print(f"Window not found: {{window_name}}")
+
+            except Exception as e:
+                print(f"An error occurred while searching for the window: {{e}}")
+
+        if not element:
+            print("Element not found in specific context. Searching in the entire UI tree.")
+            element = find_control(auto.GetRootControl(), class_name, name, automation_id)
+
+        if element:
+            highlight_element(element)
+            perform_action(element, action, step_info, window_name)
+        else:
+            print(f"Element not found for step: {{step_info}}")
+
 
 if __name__ == "__main__":
     run_automation()
 """
 
-        with open(desktop_path, "w") as f:
-            f.write(script_content)
+        try:
+            with open(desktop_path, "w", encoding="utf-8") as f:
+                f.write(script_content)
+            self.update_status(f"Script saved to {desktop_path}", "green")
+        except Exception as e:
+            self.update_status(f"Failed to save script: {e}", "red")
     
-        self.update_status(f"Script saved to {desktop_path}", "green")
-
     def update_status(self, message, color):
-        self.status_label.config(text=message, fg=color)
-        self.root.after(3000, lambda: self.status_label.config(text="", fg="black"))
-
+        self.status_label.config(text=message, foreground=color)
+        self.root.after(3000, lambda: self.status_label.config(text="", foreground="black"))
+    
     def run(self):
         self.root.mainloop()
 
