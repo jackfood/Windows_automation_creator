@@ -14,7 +14,7 @@ class AutoGUIApp:
     def __init__(self, root):
         self.root = root
         self.style = Style(theme='flatly')
-        self.root.title("Enhanced Windows Auto GUI v1.4 - Robust System improved detection")
+        self.root.title("Enhanced Windows Auto GUI v1.43 - Improved execution detection")
         self.fields = ["ClassName", "Name", "AutomationId"]
         self.vars = {field: tk.StringVar() for field in self.fields}
         self.action_var = tk.StringVar(value="Click")
@@ -363,21 +363,29 @@ import subprocess
 import win32gui
 import win32api
 import win32con
+import _ctypes
 
 ALLOW_MOUSE_MOVEMENT = {allow_mouse_movement}
+MAX_RETRIES = 3
+RETRY_DELAY = 1
 
+# Utility function to handle encoding issues
+def safe_print(text):
+    try:
+        print(text)
+    except UnicodeEncodeError:
+        print(text.encode('utf-8', errors='replace').decode())
+
+# Function to highlight UI elements
 def highlight_element(element):
     if ALLOW_MOUSE_MOVEMENT:
         rect = element.BoundingRectangle
-        width = rect.width() if callable(rect.width) else rect.width
-        height = rect.height() if callable(rect.height) else rect.height
         left, top = rect.left, rect.top
-        right, bottom = left + width, top + height
+        right, bottom = left + rect.width(), top + rect.height()
         hdc = win32gui.GetDC(0)
         red_pen = win32gui.CreatePen(win32con.PS_SOLID, 2, win32api.RGB(255, 0, 0))
         old_pen = win32gui.SelectObject(hdc, red_pen)
         try:
-            # Draw the rectangle
             win32gui.MoveToEx(hdc, left, top)
             win32gui.LineTo(hdc, right, top)
             win32gui.LineTo(hdc, right, bottom)
@@ -385,109 +393,163 @@ def highlight_element(element):
             win32gui.LineTo(hdc, left, top)
             time.sleep(0.3)
         finally:
-            # Clean up
             win32gui.SelectObject(hdc, old_pen)
             win32gui.DeleteObject(red_pen)
             win32gui.ReleaseDC(0, hdc)
     else:
-        print(f"Element bounds: Left={{element.BoundingRectangle.left}}, Top={{element.BoundingRectangle.top}}, "
-              f"Width={{element.BoundingRectangle.width}}, Height={{element.BoundingRectangle.height}}")
+        safe_print(f"Element bounds: Left={{element.BoundingRectangle.left}}, Top={{element.BoundingRectangle.top}}, "
+                   f"Width={{element.BoundingRectangle.width}}, Height={{element.BoundingRectangle.height}}")
 
-def find_desktop():
-    desktop = auto.PaneControl(ClassName="WorkerW")
-    if not desktop.Exists(1):
-        desktop = auto.PaneControl(ClassName="Progman")
-    if desktop.Exists(1):
-        listview = desktop.ListControl(ClassName="SysListView32")
-        if listview.Exists(1):
-            return listview
+# Function to find the desktop window
+def find_desktop(timeout=1, retries=MAX_RETRIES):
+    possible_classes = [
+        "WorkerW", "Progman", "Shell_TrayWnd", "#32769", 
+        "DesktopBackgroundClass", "Explorer", "SysPager", 
+        "ReBarWindow32", "DesktopShellWnd", "ApplicationFrameWindow"
+    ]
+    for attempt in range(retries):
+        for class_name in possible_classes:
+            desktop = auto.PaneControl(ClassName=class_name)
+            if desktop.Exists(timeout):
+                listview = desktop.ListControl(ClassName="SysListView32")
+                if listview.Exists(timeout):
+                    return {{
+                        'listview': listview,
+                        'parent_class': class_name,
+                        'found_after_retries': attempt
+                    }}
+        time.sleep(RETRY_DELAY)
     return None
 
-def find_window(window_name):
+# Function to find a specific window by name
+def find_window(window_name, partial_match=True):
+    def window_matcher(window):
+        if partial_match:
+            return window_name.lower() in window.Name.lower()
+        else:
+            return window_name.lower() == window.Name.lower()
+
     windows = auto.GetRootControl().GetChildren()
-    for window in windows:
-        if window_name.lower() in window.Name.lower():
-            return window
-    return None
+    matching_windows = [window for window in windows if window_matcher(window)]
+    
+    return matching_windows[0] if matching_windows else None
 
+# Function to search for a control within a given root control
 def find_control(root_control, class_name, name=None, automation_id=None, max_depth=10):
     def search(control, depth=0):
         if depth > max_depth:
             return None
-
-        if control.ClassName == "SysListView32" and name:
-            for item in control.GetChildren():
-                if item.Name.lower() == name.lower():
-                    return item
-
         if class_name_matches(control, class_name):
-            if (name is None or control.Name.lower() == name.lower()) and (automation_id is None or control.AutomationId == automation_id):
+            if (name is None or name.lower() in control.Name.lower()) and \
+               (automation_id is None or control.AutomationId == automation_id):
                 return control
-
-        for child in control.GetChildren():
+        for child in get_children_safe(control):
             result = search(child, depth + 1)
             if result:
                 return result
-
         return None
 
     def class_name_matches(ctrl, target_class):
-        if target_class == "Unknown" or not target_class:
-            return True
-        if ">" in target_class:
-            parent_class, child_class = target_class.split(" > ")
-            return ctrl.ClassName == parent_class or ctrl.ClassName == child_class
-        return (target_class.startswith("^") and re.match(target_class[1:], ctrl.ClassName)) or \
-               (ctrl.ClassName == target_class) or \
-               (target_class.lower() in ctrl.ClassName.lower())
+        try:
+            if not target_class:
+                return True
+            if ">" in target_class:
+                parent_class, child_class = target_class.split(" > ")
+                return ctrl.ClassName == parent_class or ctrl.ClassName == child_class
+            return (target_class.startswith("^") and re.match(target_class[1:], ctrl.ClassName)) or \
+                   (ctrl.ClassName == target_class) or \
+                   (target_class.lower() in ctrl.ClassName.lower())
+        except _ctypes.COMError as e:
+            safe_print(f"COMError accessing ClassName: {{e}}")
+            return False
+
+    def get_children_safe(control):
+        try:
+            return control.GetChildren()
+        except _ctypes.COMError as e:
+            safe_print(f"COMError accessing children: {{e}}")
+            return []
 
     result = search(root_control)
-    if result:
-        print(f"Found matching element: ClassName={{result.ClassName}}, Name={{result.Name}}, AutomationId={{result.AutomationId}}")
-    else:
-        print("No matching element found")
+    safe_print(f"Found matching element: ClassName={{result.ClassName}}, Name={{result.Name}}, AutomationId={{result.AutomationId}}") if result else safe_print("No matching element found")
     return result
 
+def get_children_safe(control):
+    try:
+        return control.GetChildren()
+    except _ctypes.COMError as e:
+        safe_print(f"COMError accessing children: {{e}}")
+        return []
+
+# Function to find a taskbar item by name
+def find_taskbar_item(item_name):
+    taskbar = auto.PaneControl(ClassName="Shell_TrayWnd")
+    if not taskbar.Exists(1):
+        safe_print("Taskbar not found")
+        return None
+
+    potential_parents = [
+        taskbar.PaneControl(ClassName="ReBarWindow32"),
+        taskbar.PaneControl(ClassName="MSTaskSwWClass"),
+        taskbar.PaneControl(ClassName="MSTaskListWClass")
+    ]
+
+    for parent in potential_parents:
+        if not parent.Exists(1):
+            continue
+        
+        item = parent.ButtonControl(Name=item_name)
+        if item.Exists(1):
+            return item
+        
+        for child in get_children_safe(parent):
+            if item_name.lower() in child.Name.lower():
+                return child
+
+    safe_print(f"Item '{{item_name}}' not found in Taskbar")
+    return None
+
+# Function to print the control structure recursively
+def print_control_structure(control, depth=0, max_depth=None):
+    if max_depth is not None and depth > max_depth:
+        return
+    indent = "  " * depth
+    safe_print(f"{{indent}}{{control.ControlType}} - Name: '{{control.Name}}', ClassName: '{{control.ClassName}}', AutomationId: '{{control.AutomationId}}'")
+    for child in get_children_safe(control):
+        print_control_structure(child, depth + 1, max_depth)
+
+# Function to perform specific actions on UI elements
 def perform_action(element, action, step_info, window_name=None):
-    if action == "Click":
-        element.Click(simulateMove=ALLOW_MOUSE_MOVEMENT)
-    elif action == "Right click":
-        element.RightClick(simulateMove=ALLOW_MOUSE_MOVEMENT)
-    elif action == "Double click":
-        element.DoubleClick(simulateMove=ALLOW_MOUSE_MOVEMENT)
-    elif action == "Input text":
-        element.SendKeys(step_info.get("text", ""), interval=0)
-    elif action == "Input box":
-        lines = step_info.get("text", "").splitlines()
-        for i, line in enumerate(lines):
-            element.SendKeys(line, interval=0)
-            if i < len(lines) - 1:
-                element.SendKeys(uiautomation.Keys.VK_RETURN)
-    elif action == "Special key":
-        special_key = step_info.get("special_key", "")
-        modifier_key = step_info.get("modifier_key", "")
-        modifier_key_combo = step_info.get("modifier_key_combo", "")
+    action_map = {{
+        "Click": lambda el: el.Click(simulateMove=ALLOW_MOUSE_MOVEMENT),
+        "Right click": lambda el: el.RightClick(simulateMove=ALLOW_MOUSE_MOVEMENT),
+        "Double click": lambda el: el.DoubleClick(simulateMove=ALLOW_MOUSE_MOVEMENT),
+        "Input text": lambda el: el.SendKeys(step_info.get("text", ""), interval=0),
+        "Input box": lambda el: send_multiline_text(el, step_info.get("text", "")),
+        "Special key": lambda _: press_special_key(step_info),
+        "Open Program": lambda _: subprocess.Popen(step_info.get("program_path", "")) if step_info.get("program_path") else safe_print("No program path provided for 'Open Program' action")
+    }}
 
-        # Construct the key combination string
-        key_combo = ""
-        if modifier_key:
-            key_combo += modifier_key.lower() + "+"
-        if modifier_key_combo:
-            key_combo += modifier_key_combo.lower() + "+"
-        key_combo += special_key.lower()
-
-        # Send the key combination using pyautogui
-        pyautogui.hotkey(*key_combo.split("+"))
-  
-    elif action == "Open Program":
-        program_path = step_info.get("program_path", "")
-        if program_path:
-            subprocess.Popen(program_path)
-        else:
-            print("No program path provided for 'Open Program' action")
+    action_func = action_map.get(action)
+    if action_func:
+        action_func(element)
+        safe_print(f"Action '{{action}}' performed on the element.")
     else:
-        print(f"Unknown action: {{action}}")
-    print(f"Action '{{action}}' performed on the element.")
+        safe_print(f"Unknown action: {{action}}")
+
+def send_multiline_text(element, text):
+    lines = text.splitlines()
+    for i, line in enumerate(lines):
+        element.SendKeys(line, interval=0)
+        if i < len(lines) - 1:
+            element.SendKeys(Keys.VK_RETURN)
+
+def press_special_key(step_info):
+    special_key = step_info.get("special_key", "")
+    modifier_key = step_info.get("modifier_key", "")
+    modifier_key_combo = step_info.get("modifier_key_combo", "")
+    key_combo = "+".join(filter(None, [modifier_key, modifier_key_combo, special_key])).lower()
+    pyautogui.hotkey(*key_combo.split("+"))
 
 def run_automation():
     steps = {steps_json}
@@ -503,54 +565,55 @@ def run_automation():
         automation_id = step_info.get("AutomationId")
         window_name = step_info.get("WindowName", "")
 
-        print(f"Step: Action={{action}}, ClassName={{class_name}}, Name={{name}}, AutomationId={{automation_id}}, WindowName={{window_name}}")
-
-        element = None
+        safe_print(f"Step: Action={{action}}, ClassName={{class_name}}, Name={{name}}, AutomationId={{automation_id}}, WindowName={{window_name}}")
 
         if action == "Open Program":
             perform_action(None, action, step_info)
             continue
 
-        if not window_name or window_name == "Program Manager":
-            print("Searching for desktop items")
-            desktop = find_desktop()
-            if desktop:
-                element = find_control(desktop, class_name, name, automation_id)
+        element = None
+        for attempt in range(MAX_RETRIES):
+            if window_name.lower() == "taskbar":
+                element = find_taskbar_item(name)
+            elif not window_name or window_name.lower() == "program manager":
+                desktop = find_desktop()
+                if desktop:
+                    element = find_control(desktop['listview'], class_name, name, automation_id)
             else:
-                print("Desktop not found")
-        else:
-            try:
-                print(f"Searching for window: {{window_name}}")
-                new_window = None
-                for w in auto.WindowControl(searchDepth=1).GetChildren():
-                    if window_name.lower() in w.Name.lower():
-                        new_window = w
-                        break
-
-                if new_window and new_window.Exists(1):
-                    if new_window != current_window:
-                        current_window = new_window
-                        print(f"Switching to window: {{current_window.Name}}")
-                        current_window.SetFocus()
-                        current_window.Maximize()
-                    print(f"Searching for element within window: {{current_window.Name}}")
+                window = find_window(window_name)
+                if window and window != current_window:
+                    current_window = window
+                    safe_print(f"Switching to window: {{current_window.Name}}")
+                    current_window.SetFocus()
+                    current_window.Maximize()
+                if current_window:
                     element = find_control(current_window, class_name, name, automation_id)
-                else:
-                    print(f"Window not found: {{window_name}}")
 
-            except Exception as e:
-                print(f"An error occurred while searching for the window: {{e}}")
+            if element:
+                break
+            else:
+                safe_print(f"Attempt {{attempt + 1}}/{{MAX_RETRIES}}: Element not found. Retrying...")
+                time.sleep(RETRY_DELAY)
 
         if not element:
-            print("Element not found in specific context. Searching in the entire UI tree.")
+            safe_print("Element not found in specific context. Searching in the entire UI tree.")
             element = find_control(auto.GetRootControl(), class_name, name, automation_id)
 
         if element:
             highlight_element(element)
             perform_action(element, action, step_info, window_name)
         else:
-            print(f"Element not found for step: {{step_info}}")
-
+            safe_print(f"Element not found for step: {{step_info}}")
+            safe_print("Printing nearby UI structure:")
+            if window_name.lower() == "taskbar":
+                taskbar = auto.PaneControl(ClassName="Shell_TrayWnd")
+                if taskbar.Exists(1):
+                    print_control_structure(taskbar, max_depth=3)
+            elif current_window:
+                print_control_structure(current_window, max_depth=3)
+            else:
+                root = auto.GetRootControl()
+                print_control_structure(root, max_depth=2)
 
 if __name__ == "__main__":
     run_automation()
