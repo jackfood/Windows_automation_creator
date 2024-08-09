@@ -14,7 +14,7 @@ class AutoGUIApp:
     def __init__(self, root):
         self.root = root
         self.style = Style(theme='flatly')
-        self.root.title("Enhanced Windows Auto GUI v1.43 - Improved execution detection")
+        self.root.title("Enhanced Windows Auto GUI v1.44 - Fix Decode issue and finding desktop items")
         self.fields = ["ClassName", "Name", "AutomationId"]
         self.vars = {field: tk.StringVar() for field in self.fields}
         self.action_var = tk.StringVar(value="Click")
@@ -369,7 +369,7 @@ ALLOW_MOUSE_MOVEMENT = {allow_mouse_movement}
 MAX_RETRIES = 3
 RETRY_DELAY = 1
 
-# Utility function to handle encoding issues
+# Utility function to handle encoding issues and sanitize text
 def safe_print(text):
     try:
         print(text)
@@ -401,24 +401,66 @@ def highlight_element(element):
                    f"Width={{element.BoundingRectangle.width}}, Height={{element.BoundingRectangle.height}}")
 
 # Function to find the desktop window
-def find_desktop(timeout=1, retries=MAX_RETRIES):
+def find_desktop(timeout=3, retries=MAX_RETRIES):
     possible_classes = [
         "WorkerW", "Progman", "Shell_TrayWnd", "#32769", 
         "DesktopBackgroundClass", "Explorer", "SysPager", 
         "ReBarWindow32", "DesktopShellWnd", "ApplicationFrameWindow"
     ]
+    
     for attempt in range(retries):
+        # Method 1: Try to find the desktop using WorkerW
+        desktop = auto.GetRootControl().WindowControl(ClassName="WorkerW", Name="")
+        if desktop.Exists(timeout):
+            listview = desktop.ListControl(ClassName="SysListView32")
+            if listview.Exists(timeout):
+                safe_print("Desktop found using WorkerW method")
+                return {{'listview': listview, 'parent_class': 'WorkerW', 'found_after_retries': attempt}}
+
+        # Method 2: Try to find the desktop using Progman
+        desktop = auto.PaneControl(ClassName="Progman")
+        if desktop.Exists(timeout):
+            listview = desktop.ListControl(ClassName="SysListView32")
+            if listview.Exists(timeout):
+                safe_print("Desktop found using Progman method")
+                return {{'listview': listview, 'parent_class': 'Progman', 'found_after_retries': attempt}}
+
+        # Method 3: Try to find the desktop using Shell_TrayWnd
+        shell = auto.PaneControl(ClassName="Shell_TrayWnd")
+        if shell.Exists(timeout):
+            desktop = shell.PaneControl(ClassName="DeskTop")
+            if desktop.Exists(timeout):
+                safe_print("Desktop found using Shell_TrayWnd method")
+                return {{'listview': desktop, 'parent_class': 'Shell_TrayWnd', 'found_after_retries': attempt}}
+
+        # Method 4: Try other possible classes
         for class_name in possible_classes:
             desktop = auto.PaneControl(ClassName=class_name)
             if desktop.Exists(timeout):
                 listview = desktop.ListControl(ClassName="SysListView32")
                 if listview.Exists(timeout):
-                    return {{
-                        'listview': listview,
-                        'parent_class': class_name,
-                        'found_after_retries': attempt
-                    }}
+                    safe_print(f"Desktop found using {{class_name}} method")
+                    return {{'listview': listview, 'parent_class': class_name, 'found_after_retries': attempt}}
+
+        safe_print(f"Desktop not found, attempt {{attempt + 1}}/{{retries}}")
         time.sleep(RETRY_DELAY)
+    
+    safe_print("Desktop not found after all attempts")
+    return None
+
+def find_desktop_item(desktop_listview, name, timeout=3, retries=MAX_RETRIES):
+    for attempt in range(retries):
+        items = desktop_listview.GetChildren()
+        for item in items:
+            if name.lower() in item.Name.lower():
+                safe_print(f"Found desktop item: {{item.Name}}")
+                return item
+        
+        safe_print(f"Item '{{name}}' not found, scrolling and retrying...")
+        desktop_listview.WheelDown(wheelTimes=3)
+        time.sleep(1)
+    
+    safe_print(f"Desktop item '{{name}}' not found after all attempts")
     return None
 
 # Function to find a specific window by name
@@ -462,13 +504,6 @@ def find_control(root_control, class_name, name=None, automation_id=None, max_de
         except _ctypes.COMError as e:
             safe_print(f"COMError accessing ClassName: {{e}}")
             return False
-
-    def get_children_safe(control):
-        try:
-            return control.GetChildren()
-        except _ctypes.COMError as e:
-            safe_print(f"COMError accessing children: {{e}}")
-            return []
 
     result = search(root_control)
     safe_print(f"Found matching element: ClassName={{result.ClassName}}, Name={{result.Name}}, AutomationId={{result.AutomationId}}") if result else safe_print("No matching element found")
@@ -555,6 +590,10 @@ def run_automation():
     steps = {steps_json}
 
     current_window = None
+    desktop = find_desktop()
+    if not desktop:
+        safe_print("Failed to find desktop. Exiting.")
+        return
 
     for step_info, wait_time in steps:
         time.sleep(wait_time)
@@ -576,9 +615,7 @@ def run_automation():
             if window_name.lower() == "taskbar":
                 element = find_taskbar_item(name)
             elif not window_name or window_name.lower() == "program manager":
-                desktop = find_desktop()
-                if desktop:
-                    element = find_control(desktop['listview'], class_name, name, automation_id)
+                element = find_desktop_item(desktop['listview'], name)
             else:
                 window = find_window(window_name)
                 if window and window != current_window:
@@ -618,7 +655,7 @@ def run_automation():
 if __name__ == "__main__":
     run_automation()
 """
-
+    
         try:
             with open(desktop_path, "w", encoding="utf-8") as f:
                 f.write(script_content)
