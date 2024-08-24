@@ -14,7 +14,7 @@ class AutoGUIApp:
     def __init__(self, root):
         self.root = root
         self.style = Style(theme='flatly')
-        self.root.title("Enhanced Windows Auto GUI v1.44 - Fix Decode issue and finding desktop items")
+        self.root.title("Enhanced Windows Auto GUI v1.44.1 - Fix Decode issue and finding desktop items")
         self.fields = ["ClassName", "Name", "AutomationId"]
         self.vars = {field: tk.StringVar() for field in self.fields}
         self.action_var = tk.StringVar(value="Click")
@@ -364,6 +364,7 @@ import win32gui
 import win32api
 import win32con
 import _ctypes
+import sys
 
 ALLOW_MOUSE_MOVEMENT = {allow_mouse_movement}
 MAX_RETRIES = 3
@@ -371,10 +372,17 @@ RETRY_DELAY = 1
 
 # Utility function to handle encoding issues and sanitize text
 def safe_print(text):
-    try:
-        print(text)
-    except UnicodeEncodeError:
-        print(text.encode('utf-8', errors='replace').decode())
+    if isinstance(text, str):
+        try:
+            encoded_text = text.encode(sys.stdout.encoding, errors='replace')
+            print(encoded_text.decode(sys.stdout.encoding, errors='replace'))
+        except UnicodeEncodeError:
+            print("Failed to encode the following for print: " + repr(text))
+    else:
+        try:
+            print(str(text))
+        except Exception as e:
+            print(f"Could not convert the following to string for print: {{text}}, Error: {{e}}")
 
 # Function to highlight UI elements
 def highlight_element(element):
